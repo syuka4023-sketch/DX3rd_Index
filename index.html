@@ -56,6 +56,18 @@ textarea{min-height:86px;resize:vertical}.dropzone{text-align:center;border:2px 
 .checkChip input{
   width:auto;
 }
+.linkBtn{
+  background:none;
+  border:0;
+  color:#1f4fbf;
+  text-decoration:underline;
+  cursor:pointer;
+  padding:2px 4px;
+  font-weight:bold;
+}
+.linkBtn:hover{
+  color:#0b2f80;
+}
 </style>
 </head>
 <body>
@@ -212,7 +224,22 @@ function setupFilters(){detail.classList.remove("show");updateExpFilterVisibilit
   filter1.classList.remove("hidden");
   const old = document.getElementById("syndromeMultiFilterBox");
   if(old) old.remove();
-}if(mode==="dlois"){filter1.dataset.key="type";filter2.dataset.key="limit";filter1.firstElementChild.textContent="分類すべて";filter2.firstElementChild.textContent="制限すべて";addOptions(filter1,unique(dloisList.map(d=>d.type)));addOptions(filter2,unique(dloisList.map(d=>d.limit)))}renderTagFilterBox()}
+}if(mode==="item"){
+  filter1.dataset.key="category";
+  filter2.dataset.key="type";
+  filter1.firstElementChild.textContent="種別すべて";
+  filter2.firstElementChild.textContent="タイプすべて";
+  addOptions(filter1,unique(items.map(i=>i.category)));
+  addOptions(filter2,unique(items.map(i=>i.type)));
+}
+if(mode==="dlois"){
+  filter1.dataset.key="type";
+  filter2.dataset.key="limit";
+  filter1.firstElementChild.textContent="分類すべて";
+  filter2.firstElementChild.textContent="制限すべて";
+  addOptions(filter1,unique(dloisList.map(d=>d.type)));
+  addOptions(filter2,unique(dloisList.map(d=>d.limit)))
+}renderTagFilterBox()}
 function renderSyndromeMultiFilter(){
   if(mode !== "effect") return;
 
@@ -284,7 +311,66 @@ return (!q || text.includes(q))
   && minusTagOK
   && expMinOK
   && expMaxOK;});const sort=sortSelect.value;result.sort((a,b)=>{let key="name";if(sort.startsWith("source"))key="source";if(sort.startsWith("skill"))key="skill";const r=String(a[key]||"").localeCompare(String(b[key]||""),"ja");return sort.endsWith("Desc")?-r:r});return result}
-function renderList(){const result=filteredSortedData();list.innerHTML="";countText.textContent=`表示 ${result.length}件 / 全 ${getCurrentData().length}件`;if(!result.length){list.innerHTML=`<div class="empty">該当データがありません</div>`;return}result.forEach(d=>{const card=document.createElement("div");card.className="card";if(mode==="effect")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.syndrome)}</span><span class="tag">${escapeHTML(d.timing)}</span><span class="tag">${escapeHTML(d.skill)}</span>${renderUserTags(d.tags)}<p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;if(mode==="item")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.category)}</span><span class="tag">${escapeHTML(d.type)}</span>${renderUserTags(d.tags)}<p>購入：${escapeHTML(d.purchase)}</p><p>常備化：${escapeHTML(d.stock)}</p><p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;if(mode==="dlois")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.type)}</span><span class="tag">${escapeHTML(d.limit)}</span>${renderUserTags(d.tags)}<p>タイミング：${escapeHTML(d.timing)}</p><p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;list.appendChild(card)})}
+function renderRelatedLine(links){
+  const html = renderLinkedData(links);
+  return html ? `<p><b>関連：</b><br>${html}</p>` : "";
+}
+
+function renderList(){
+  const result = filteredSortedData();
+  list.innerHTML = "";
+  countText.textContent = `表示 ${result.length}件 / 全 ${getCurrentData().length}件`;
+
+  if(!result.length){
+    list.innerHTML = `<div class="empty">該当データがありません</div>`;
+    return;
+  }
+
+  result.forEach(d=>{
+    const card = document.createElement("div");
+    card.className = "card";
+
+    if(mode==="effect"){
+      card.innerHTML = `
+        <h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3>
+        <span class="tag">${escapeHTML(d.syndrome)}</span>
+        <span class="tag">${escapeHTML(d.timing)}</span>
+        <span class="tag">${escapeHTML(d.skill)}</span>
+        ${renderUserTags(d.tags)}
+        <p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>
+        ${renderRelatedLine(d.links)}
+      `;
+    }
+
+    if(mode==="item"){
+      card.innerHTML = `
+        <h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3>
+        <span class="tag">${escapeHTML(d.category)}</span>
+        <span class="tag">${escapeHTML(d.type)}</span>
+        ${renderUserTags(d.tags)}
+        <p>購入：${escapeHTML(d.purchase)}</p>
+        <p>常備化：${escapeHTML(d.stock)}</p>
+        <p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>
+        ${renderRelatedLine(d.links)}
+      `;
+    }
+
+    
+    if(mode==="dlois"){
+      card.innerHTML = `
+        <h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3>
+        <span class="tag">${escapeHTML(d.type)}</span>
+        <span class="tag">${escapeHTML(d.limit)}</span>
+        ${renderUserTags(d.tags)}
+        <p>タイミング：${escapeHTML(d.timing)}</p>
+        <p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>
+        ${renderRelatedLine(d.links)}
+      `;
+    }
+
+    list.appendChild(card);
+  });
+}
 
 function renderDetailByName(name){
   const d = getCurrentData().find(x => x.name === name);
@@ -316,6 +402,7 @@ function renderDetailModal(d){
       <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
       <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
       <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>関連データ：</b><br>${renderLinkedData(d.links) || "なし"}</p>
       <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
       <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
       ${modalButtons(d.name)}
@@ -337,6 +424,7 @@ function renderDetailModal(d){
       <p><b>経験点：</b>${escapeHTML(d.exp || "-")}</p>
       <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
       <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>関連データ：</b><br>${renderLinkedData(d.links) || "なし"}</p>
       <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
       <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
       ${modalButtons(d.name)}
@@ -351,6 +439,7 @@ function renderDetailModal(d){
       <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
       <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
       <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>関連データ：</b><br>${renderLinkedData(d.links) || "なし"}</p>
       <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
       ${modalButtons(d.name)}
     `;
@@ -475,7 +564,9 @@ function showEditor(d){
   editor.classList.add("show");
 
   let html = `<h2>${editingOldName ? "編集" : "新規追加"}</h2><div class="formGrid">`;
-
+if(mode !== "effect"){
+  html += fieldHTML("f_name","名前",d.name||"");
+}
   
 
   if(mode==="effect"){
@@ -490,11 +581,26 @@ function showEditor(d){
       fieldHTML("f_range","射程",d.range||"") +
       fieldHTML("f_cost","侵蝕値",d.cost||"");
   }
-if(mode==="item"){html+=fieldHTML("f_category","分類",d.category||"")+fieldHTML("f_type","種別",d.type||"")+fieldHTML("f_skill","技能",d.skill||"")+fieldHTML("f_accuracy","命中",d.accuracy||"")+fieldHTML("f_attack","攻撃力",d.attack||"")+fieldHTML("f_guard","ガード値",d.guard||"")+fieldHTML("f_range","射程",d.range||"")+fieldHTML("f_action","行動（ヴィーグル用）",d.action||"")+fieldHTML("f_armor","装甲値（ヴィーグル用）",d.armor||"")+fieldHTML("f_fullMove","全力疾走（ヴィーグル用）",d.fullMove||"")+fieldHTML("f_purchase","購入",d.purchase||"")+fieldHTML("f_stock","常備化",d.stock||"")+fieldHTML("f_exp","経験点",d.exp||"")}if(mode==="dlois"){html+=fieldHTML("f_type","分類",d.type||"")+fieldHTML("f_timing","タイミング",d.timing||"")+fieldHTML("f_limit","制限",d.limit||"")}html+=`<div class="full">${fieldHTML("f_effect","効果",d.effect||"",true)}</div><div class="full">${fieldHTML("f_description","解説",d.description||"",true)}</div><div class="full"><label><b>任意タグ（カンマ区切り）</b><input id="f_tags" value="${escapeAttr(d.tags||"")}" list="tagSuggestList" placeholder="例：通常エフェクト,イージーエフェクト,火力"><datalist id="tagSuggestList">${tagOptionsHTML()}</datalist></label>${mode==="effect"?`<div class="small">エフェクト種別：<button type="button" class="btn small" onclick="setEffectTypeTag('通常エフェクト')">通常エフェクト</button><button type="button" class="btn small" onclick="setEffectTypeTag('イージーエフェクト')">イージーエフェクト</button></div>`:""}<div class="small">候補タグ：${tagChipsHTML()}</div></div>${fieldHTML("f_source","出典",d.source||"")}</div><br><button class="btn main" onclick="saveEditor()">保存</button> <button class="btn" onclick="closeEditor()">キャンセル</button>`;editor.innerHTML=html;editor.scrollIntoView({behavior:"smooth"})}
+if(mode==="item"){html+=fieldHTML("f_category","分類",d.category||"")+fieldHTML("f_type","種別",d.type||"")+fieldHTML("f_skill","技能",d.skill||"")+fieldHTML("f_accuracy","命中",d.accuracy||"")+fieldHTML("f_attack","攻撃力",d.attack||"")+fieldHTML("f_guard","ガード値",d.guard||"")+fieldHTML("f_range","射程",d.range||"")+fieldHTML("f_action","行動（ヴィーグル用）",d.action||"")+fieldHTML("f_armor","装甲値（ヴィーグル用）",d.armor||"")+fieldHTML("f_fullMove","全力疾走（ヴィーグル用）",d.fullMove||"")+fieldHTML("f_purchase","購入",d.purchase||"")+fieldHTML("f_stock","常備化",d.stock||"")+fieldHTML("f_exp","経験点",d.exp||"")}if(mode==="dlois"){html+=fieldHTML("f_type","分類",d.type||"")+fieldHTML("f_timing","タイミング",d.timing||"")+fieldHTML("f_limit","制限",d.limit||"")}html+=`<div class="full">${fieldHTML("f_effect","効果",d.effect||"",true)}</div><div class="full">${fieldHTML("f_description","解説",d.description||"",true)}</div><div class="full">
+  <label>
+    <b>関連データ（名前をカンマ区切り）</b>
+    <input id="f_links" value="${escapeAttr(normalizeLinks(d.links || ""))}" list="linkSuggestList" placeholder="入力すると候補が出ます">
+    <datalist id="linkSuggestList">${linkOptionsHTML()}</datalist>
+  </label>
+</div>
+</div><div class="full"><label><b>任意タグ（カンマ区切り）</b><input id="f_tags" value="${escapeAttr(d.tags||"")}" list="tagSuggestList" placeholder="例：通常エフェクト,イージーエフェクト,火力"><datalist id="tagSuggestList">${tagOptionsHTML()}</datalist></label>${mode==="effect"?`<div class="small">エフェクト種別：<button type="button" class="btn small" onclick="setEffectTypeTag('通常エフェクト')">通常エフェクト</button><button type="button" class="btn small" onclick="setEffectTypeTag('イージーエフェクト')">イージーエフェクト</button></div>`:""}</div>${fieldHTML("f_source","出典",d.source||"")}</div><br><button class="btn main" onclick="saveEditor()">保存</button> <button class="btn" onclick="closeEditor()">キャンセル</button>`;editor.innerHTML=html;editor.scrollIntoView({behavior:"smooth"})}
 function closeEditor(){editingOldName=null;editor.classList.remove("show")}
 function val(id){return ($(id)?.value||"").trim()}
-async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textContent="名前は必須です";return}let arr=getCurrentData();const exists=arr.find(x=>x.name===name);if(exists&&editingOldName!==name&&!confirm("同じ名前のデータがあります。上書きしますか？"))return;let obj={name,effect:val("f_effect"),description:val("f_description"),tags:normalizeTags(val("f_tags")),source:val("f_source")};
-  if(mode==="effect")
+async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textContent="名前は必須です";return}let arr=getCurrentData();const exists=arr.find(x=>x.name===name);if(exists&&editingOldName!==name&&!confirm("同じ名前のデータがあります。上書きしますか？"))return;
+let obj={
+  name,
+  effect:val("f_effect"),
+  description:val("f_description"),
+  links:normalizeLinks(val("f_links")),
+  tags:normalizeTags(val("f_tags")),
+  source:val("f_source")
+};
+  if(mode==="effect"){
   Object.assign(obj,{
     syndrome:val("f_syndrome"),
     level:val("f_level"),
@@ -505,7 +611,11 @@ async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textCon
     range:val("f_range"),
     cost:val("f_cost")
   });
-  if(mode==="item")Object.assign(obj,{category:val("f_category"),type:val("f_type"),skill:val("f_skill"),accuracy:val("f_accuracy"),attack:val("f_attack"),guard:val("f_guard"),range:val("f_range"),action:val("f_action"),armor:val("f_armor"),fullMove:val("f_fullMove"),purchase:val("f_purchase"),stock:val("f_stock"),exp:val("f_exp")});if(mode==="dlois")Object.assign(obj,{type:val("f_type"),timing:val("f_timing"),limit:val("f_limit")});if(editingOldName&&editingOldName!==name){await deleteOne(storeName(),editingOldName);arr=arr.filter(x=>x.name!==editingOldName)}arr=arr.filter(x=>x.name!==name);arr.push(obj);setCurrentData(arr);await putOne(storeName(),obj);csvStatus.textContent=`保存しました：${name}`;editingOldName=null;closeEditor();setupFilters();renderList();renderDetail(obj)}
+}
+  if(mode==="item")Object.assign(obj,{category:val("f_category"),type:val("f_type"),skill:val("f_skill"),accuracy:val("f_accuracy"),attack:val("f_attack"),guard:val("f_guard"),range:val("f_range"),action:val("f_action"),armor:val("f_armor"),fullMove:val("f_fullMove"),purchase:val("f_purchase"),stock:val("f_stock"),exp:val("f_exp")});if(mode==="dlois")Object.assign(obj,{type:val("f_type"),timing:val("f_timing"),limit:val("f_limit")});if(editingOldName&&editingOldName!==name){await deleteOne(storeName(),editingOldName);arr=arr.filter(x=>x.name!==editingOldName)}arr=arr.filter(x=>x.name!==name);arr.push(obj);setCurrentData(arr);
+await putOne(storeName(),obj);
+await syncReverseLinksFor(obj, mode);
+csvStatus.textContent=`保存しました：${name}`;editingOldName=null;closeEditor();setupFilters();renderList();renderDetail(obj)}
 async function deleteByName(name){if(!confirm(`「${name}」を削除しますか？`))return;let arr=getCurrentData().filter(x=>x.name!==name);setCurrentData(arr);await deleteOne(storeName(),name);csvStatus.textContent=`削除しました：${name}`;detail.classList.remove("show");setupFilters();renderList()}
 
 function loadCSVFromInput(){const file=$("csvFile").files[0];if(!file){setStatus("CSVファイルを選択してください");return}readCSVFile(file)}
@@ -571,7 +681,8 @@ function readCSVFile(file){
             effect: obj.effect || "",
             description: obj.description || "",
             source: obj.source || "",
-            tags: normalizeTags(obj.tags || obj.effectType || "通常エフェクト")
+            tags: normalizeTags(obj.tags || obj.effectType || "通常エフェクト"),
+            links: normalizeLinks(obj.links || obj.related || ""),
           });
 
         }else if(kind === "item"){
@@ -596,8 +707,10 @@ function readCSVFile(file){
             effect: obj.effect || "",
             description: obj.description || "",
             source: obj.source || "",
-            tags: normalizeTags(obj.tags || "")
+            tags: normalizeTags(obj.tags || ""),
+            links: normalizeLinks(obj.links || obj.related || ""),
           });
+
 
         }else if(kind === "dlois"){
           if(dloisList.find(x => x.name === obj.name)) overwrite++;
@@ -611,7 +724,8 @@ function readCSVFile(file){
             effect: obj.effect || "",
             description: obj.description || "",
             source: obj.source || "",
-            tags: normalizeTags(obj.tags || "")
+            tags: normalizeTags(obj.tags || ""),
+            links: normalizeLinks(obj.links || obj.related || ""),
           });
 
         }else{
@@ -898,6 +1012,171 @@ function tagOptionsHTML(){return getAllTags().map(t=>`<option value="${escapeAtt
 function tagChipsHTML(){const tags=getAllTags();if(!tags.length)return "まだタグがありません";return tags.map(t=>`<button type="button" class="btn small" onclick="addTagToEditor('${escapeJS(t)}')">#${escapeHTML(t)}</button>`).join(" ")}
 function addTagToEditor(tag){const input=document.getElementById("f_tags");if(!input)return;const current=normalizeTags(input.value).split(",").filter(Boolean);if(!current.includes(tag))current.push(tag);input.value=current.join(",")}
 function setEffectTypeTag(typeTag){const input=document.getElementById("f_tags");if(!input)return;let current=normalizeTags(input.value).split(",").filter(Boolean);current=current.filter(t=>t!=="通常エフェクト"&&t!=="イージーエフェクト");current.unshift(typeTag);input.value=current.join(",")}
+function normalizeLinks(str){
+  if(Array.isArray(str)) return str.map(v => String(v).trim()).filter(Boolean).join(",");
+  return String(str ?? "")
+    .split(/[、,]/)
+    .map(v => v.trim())
+    .filter(Boolean)
+    .join(",");
+}
+
+function getAllData(){
+  return [
+    ...effects.map(x => ({...x, kind:"effect"})),
+    ...items.map(x => ({...x, kind:"item"})),
+    ...dloisList.map(x => ({...x, kind:"dlois"}))
+  ];
+}
+
+function getKindLabel(kind){
+  if(kind === "effect") return "エフェクト";
+  if(kind === "item") return "アイテム";
+  if(kind === "dlois") return "Dロイス";
+  return "不明";
+}
+
+function findDataByName(name){
+  return getAllData().find(x => x.name === name);
+}
+
+function linkOptionsHTML(){
+  return getAllData()
+    .map(d => {
+      const value = `${d.kind}::${d.name}`;
+      const label = `${getKindLabel(d.kind)}：${d.name}`;
+      return `<option value="${escapeAttr(value)}" label="${escapeAttr(label)}"></option>`;
+    })
+    .join("");
+}
+
+function linkChipsHTML(currentName=""){
+  const data = getAllData().filter(d => d.name !== currentName);
+
+  if(!data.length) return "候補なし";
+
+  return data
+    .slice(0, 80)
+    .map(d => `<button type="button" class="btn small" onclick="addLinkToEditor('${escapeJS(d.name)}')">${escapeHTML(d.name)}</button>`)
+    .join(" ");
+}
+
+function addLinkToEditor(kind, name){
+  const input = document.getElementById("f_links");
+  if(!input) return;
+
+  const current = normalizeLinks(input.value).split(",").filter(Boolean);
+  const value = `${kind}::${name}`;
+
+  if(!current.includes(value)){
+    current.push(value);
+  }
+
+  input.value = current.join(",");
+}
+
+function renderLinkedData(str){
+  const list = normalizeLinks(str).split(",").filter(Boolean);
+  if(!list.length) return "";
+
+  return list.map(v => {
+    let kind, name;
+
+    if(v.includes("::")){
+      [kind, name] = v.split("::");
+    }else{
+      // 旧データ対応
+      name = v;
+      const found = findDataByName(name);
+      kind = found?.kind;
+    }
+
+    const d = getAllData().find(x => x.name === name && x.kind === kind);
+
+    if(!d){
+      return `<span class="userTag">未登録：${escapeHTML(name)}</span>`;
+    }
+
+    return `
+      <button type="button" class="linkBtn"
+        onclick="openLinkedData('${escapeJS(kind)}','${escapeJS(name)}')">
+        ${escapeHTML(getKindLabel(kind))}：${escapeHTML(name)}
+      </button>
+    `;
+  }).join(" / ");
+}
+
+function openLinkedData(kind, name){
+  const oldMode = mode;
+  mode = kind;
+
+  const d = getCurrentData().find(x => x.name === name);
+
+  if(d){
+    renderDetailModal(d);
+  }
+
+  mode = oldMode;
+}
+function makeLinkValue(kind, name){
+  return `${kind}::${name}`;
+}
+
+function getCurrentKind(){
+  return mode;
+}
+
+function parseLinkValue(v){
+  v = String(v || "").trim();
+
+  if(v.includes("::")){
+    const [kind, ...rest] = v.split("::");
+    return { kind, name: rest.join("::") };
+  }
+
+  const found = findDataByName(v);
+  return found ? { kind: found.kind, name: found.name } : { kind:"", name:v };
+}
+
+function addLinkValueToObj(obj, linkValue){
+  const links = normalizeLinks(obj.links).split(",").filter(Boolean);
+
+  if(!links.includes(linkValue)){
+    links.push(linkValue);
+  }
+
+  obj.links = links.join(",");
+}
+
+async function syncReverseLinksFor(obj, kind){
+  const myLinkValue = makeLinkValue(kind, obj.name);
+  const targets = normalizeLinks(obj.links).split(",").filter(Boolean);
+
+  for(const raw of targets){
+    const parsed = parseLinkValue(raw);
+    if(!parsed.kind || !parsed.name) continue;
+
+    const target = getAllData().find(x => x.kind === parsed.kind && x.name === parsed.name);
+    if(!target) continue;
+
+    addLinkValueToObj(target, myLinkValue);
+
+    if(parsed.kind === "effect"){
+      effects = mergeByName(effects, [target]);
+      await putOne("effects", target);
+    }
+
+    if(parsed.kind === "item"){
+      items = mergeByName(items, [target]);
+      await putOne("items", target);
+    }
+
+    if(parsed.kind === "dlois"){
+      dloisList = mergeByName(dloisList, [target]);
+      await putOne("dlois", target);
+    }
+  }
+}
 function renderUserTags(str){return normalizeTags(str).split(",").filter(Boolean).map(t=>`<span class="userTag">#${escapeHTML(t)}</span>`).join("")}
 function escapeHTML(str){return String(str??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;")}
 function escapeAttr(str){return escapeHTML(str)}
