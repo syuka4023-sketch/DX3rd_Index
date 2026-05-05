@@ -98,9 +98,11 @@ textarea{min-height:86px;resize:vertical}.dropzone{text-align:center;border:2px 
   <section id="filePanel" class="controls hidden">
   <h2>ファイル管理</h2>
 
-  <input type="file" id="csvFile" accept=".csv,text/csv">
+  <input type="file" id="csvFile" accept=".csv,.json,text/csv,application/json">
 
   <div class="row">
+    <button class="btn main" onclick="exportShareData()">共有データ出力</button>
+<button class="btn" onclick="importShareDataFromInput()">共有データ読み込み</button>
     <button class="btn main" onclick="loadCSVFromInput()">CSV読み込み</button>
     <button class="btn" onclick="downloadTemplate('effect')">エフェクトCSV</button>
     <button class="btn" onclick="downloadTemplate('item')">アイテムCSV</button>
@@ -193,7 +195,7 @@ async function init(){try{await openDB();effects=await getAll("effects");items=a
 
 function setupFilters(){detail.classList.remove("show");updateExpFilterVisibility();filter1.innerHTML=`<option value="">すべて</option>`;filter2.innerHTML=`<option value="">すべて</option>`;if(mode==="effect"){
   filter1.classList.add("hidden");
-  
+
   filter1.dataset.key="syndrome";
   filter2.dataset.key="timing";
 
@@ -468,10 +470,42 @@ function closeDetail(){detail.classList.remove("show")}
 function openNewEditor(){editingOldName=null;showEditor({})}
 function openEditByName(name){const d=getCurrentData().find(x=>x.name===name);if(!d)return;editingOldName=name;showEditor(d)}
 function fieldHTML(id,label,value="",area=false){return `<label><b>${label}</b>${area?`<textarea id="${id}">${escapeHTML(value)}</textarea>`:`<input id="${id}" value="${escapeAttr(value)}">`}</label>`}
-function showEditor(d){detail.classList.remove("show");editor.classList.add("show");let html=`<h2>${editingOldName?"編集":"新規追加"}</h2><div class="formGrid">`;html+=fieldHTML("f_name","名前",d.name||"");if(mode==="effect"){html+=fieldHTML("f_syndrome","シンドローム",d.syndrome||"")+fieldHTML("f_timing","タイミング",d.timing||"")+fieldHTML("f_skill","技能",d.skill||"")+fieldHTML("f_level","レベル",d.level||"")+fieldHTML("f_cost","侵蝕値",d.cost||"")}if(mode==="item"){html+=fieldHTML("f_category","分類",d.category||"")+fieldHTML("f_type","種別",d.type||"")+fieldHTML("f_skill","技能",d.skill||"")+fieldHTML("f_accuracy","命中",d.accuracy||"")+fieldHTML("f_attack","攻撃力",d.attack||"")+fieldHTML("f_guard","ガード値",d.guard||"")+fieldHTML("f_range","射程",d.range||"")+fieldHTML("f_action","行動（ヴィーグル用）",d.action||"")+fieldHTML("f_armor","装甲値（ヴィーグル用）",d.armor||"")+fieldHTML("f_fullMove","全力疾走（ヴィーグル用）",d.fullMove||"")+fieldHTML("f_purchase","購入",d.purchase||"")+fieldHTML("f_stock","常備化",d.stock||"")+fieldHTML("f_exp","経験点",d.exp||"")}if(mode==="dlois"){html+=fieldHTML("f_type","分類",d.type||"")+fieldHTML("f_timing","タイミング",d.timing||"")+fieldHTML("f_limit","制限",d.limit||"")}html+=`<div class="full">${fieldHTML("f_effect","効果",d.effect||"",true)}</div><div class="full">${fieldHTML("f_description","解説",d.description||"",true)}</div><div class="full"><label><b>任意タグ（カンマ区切り）</b><input id="f_tags" value="${escapeAttr(d.tags||"")}" list="tagSuggestList" placeholder="例：通常エフェクト,イージーエフェクト,火力"><datalist id="tagSuggestList">${tagOptionsHTML()}</datalist></label>${mode==="effect"?`<div class="small">エフェクト種別：<button type="button" class="btn small" onclick="setEffectTypeTag('通常エフェクト')">通常エフェクト</button><button type="button" class="btn small" onclick="setEffectTypeTag('イージーエフェクト')">イージーエフェクト</button></div>`:""}<div class="small">候補タグ：${tagChipsHTML()}</div></div>${fieldHTML("f_source","出典",d.source||"")}</div><br><button class="btn main" onclick="saveEditor()">保存</button> <button class="btn" onclick="closeEditor()">キャンセル</button>`;editor.innerHTML=html;editor.scrollIntoView({behavior:"smooth"})}
+function showEditor(d){
+  detail.classList.remove("show");
+  editor.classList.add("show");
+
+  let html = `<h2>${editingOldName ? "編集" : "新規追加"}</h2><div class="formGrid">`;
+
+  
+
+  if(mode==="effect"){
+    html +=
+      fieldHTML("f_syndrome","シンドローム",d.syndrome||"") +
+      fieldHTML("f_name","名前",d.name||"") +
+      fieldHTML("f_level","最大レベル",d.level||"") +
+      fieldHTML("f_timing","タイミング",d.timing||"") +
+      fieldHTML("f_skill","技能",d.skill||"") +
+      fieldHTML("f_difficulty","難易度",d.difficulty||"") +
+      fieldHTML("f_target","対象",d.target||"") +
+      fieldHTML("f_range","射程",d.range||"") +
+      fieldHTML("f_cost","侵蝕値",d.cost||"");
+  }
+if(mode==="item"){html+=fieldHTML("f_category","分類",d.category||"")+fieldHTML("f_type","種別",d.type||"")+fieldHTML("f_skill","技能",d.skill||"")+fieldHTML("f_accuracy","命中",d.accuracy||"")+fieldHTML("f_attack","攻撃力",d.attack||"")+fieldHTML("f_guard","ガード値",d.guard||"")+fieldHTML("f_range","射程",d.range||"")+fieldHTML("f_action","行動（ヴィーグル用）",d.action||"")+fieldHTML("f_armor","装甲値（ヴィーグル用）",d.armor||"")+fieldHTML("f_fullMove","全力疾走（ヴィーグル用）",d.fullMove||"")+fieldHTML("f_purchase","購入",d.purchase||"")+fieldHTML("f_stock","常備化",d.stock||"")+fieldHTML("f_exp","経験点",d.exp||"")}if(mode==="dlois"){html+=fieldHTML("f_type","分類",d.type||"")+fieldHTML("f_timing","タイミング",d.timing||"")+fieldHTML("f_limit","制限",d.limit||"")}html+=`<div class="full">${fieldHTML("f_effect","効果",d.effect||"",true)}</div><div class="full">${fieldHTML("f_description","解説",d.description||"",true)}</div><div class="full"><label><b>任意タグ（カンマ区切り）</b><input id="f_tags" value="${escapeAttr(d.tags||"")}" list="tagSuggestList" placeholder="例：通常エフェクト,イージーエフェクト,火力"><datalist id="tagSuggestList">${tagOptionsHTML()}</datalist></label>${mode==="effect"?`<div class="small">エフェクト種別：<button type="button" class="btn small" onclick="setEffectTypeTag('通常エフェクト')">通常エフェクト</button><button type="button" class="btn small" onclick="setEffectTypeTag('イージーエフェクト')">イージーエフェクト</button></div>`:""}<div class="small">候補タグ：${tagChipsHTML()}</div></div>${fieldHTML("f_source","出典",d.source||"")}</div><br><button class="btn main" onclick="saveEditor()">保存</button> <button class="btn" onclick="closeEditor()">キャンセル</button>`;editor.innerHTML=html;editor.scrollIntoView({behavior:"smooth"})}
 function closeEditor(){editingOldName=null;editor.classList.remove("show")}
 function val(id){return ($(id)?.value||"").trim()}
-async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textContent="名前は必須です";return}let arr=getCurrentData();const exists=arr.find(x=>x.name===name);if(exists&&editingOldName!==name&&!confirm("同じ名前のデータがあります。上書きしますか？"))return;let obj={name,effect:val("f_effect"),description:val("f_description"),tags:normalizeTags(val("f_tags")),source:val("f_source")};if(mode==="effect")Object.assign(obj,{syndrome:val("f_syndrome"),timing:val("f_timing"),skill:val("f_skill"),level:val("f_level"),cost:val("f_cost")});if(mode==="item")Object.assign(obj,{category:val("f_category"),type:val("f_type"),skill:val("f_skill"),accuracy:val("f_accuracy"),attack:val("f_attack"),guard:val("f_guard"),range:val("f_range"),action:val("f_action"),armor:val("f_armor"),fullMove:val("f_fullMove"),purchase:val("f_purchase"),stock:val("f_stock"),exp:val("f_exp")});if(mode==="dlois")Object.assign(obj,{type:val("f_type"),timing:val("f_timing"),limit:val("f_limit")});if(editingOldName&&editingOldName!==name){await deleteOne(storeName(),editingOldName);arr=arr.filter(x=>x.name!==editingOldName)}arr=arr.filter(x=>x.name!==name);arr.push(obj);setCurrentData(arr);await putOne(storeName(),obj);csvStatus.textContent=`保存しました：${name}`;editingOldName=null;closeEditor();setupFilters();renderList();renderDetail(obj)}
+async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textContent="名前は必須です";return}let arr=getCurrentData();const exists=arr.find(x=>x.name===name);if(exists&&editingOldName!==name&&!confirm("同じ名前のデータがあります。上書きしますか？"))return;let obj={name,effect:val("f_effect"),description:val("f_description"),tags:normalizeTags(val("f_tags")),source:val("f_source")};
+  if(mode==="effect")
+  Object.assign(obj,{
+    syndrome:val("f_syndrome"),
+    level:val("f_level"),
+    timing:val("f_timing"),
+    skill:val("f_skill"),
+    difficulty:val("f_difficulty"),
+    target:val("f_target"),
+    range:val("f_range"),
+    cost:val("f_cost")
+  });
+  if(mode==="item")Object.assign(obj,{category:val("f_category"),type:val("f_type"),skill:val("f_skill"),accuracy:val("f_accuracy"),attack:val("f_attack"),guard:val("f_guard"),range:val("f_range"),action:val("f_action"),armor:val("f_armor"),fullMove:val("f_fullMove"),purchase:val("f_purchase"),stock:val("f_stock"),exp:val("f_exp")});if(mode==="dlois")Object.assign(obj,{type:val("f_type"),timing:val("f_timing"),limit:val("f_limit")});if(editingOldName&&editingOldName!==name){await deleteOne(storeName(),editingOldName);arr=arr.filter(x=>x.name!==editingOldName)}arr=arr.filter(x=>x.name!==name);arr.push(obj);setCurrentData(arr);await putOne(storeName(),obj);csvStatus.textContent=`保存しました：${name}`;editingOldName=null;closeEditor();setupFilters();renderList();renderDetail(obj)}
 async function deleteByName(name){if(!confirm(`「${name}」を削除しますか？`))return;let arr=getCurrentData().filter(x=>x.name!==name);setCurrentData(arr);await deleteOne(storeName(),name);csvStatus.textContent=`削除しました：${name}`;detail.classList.remove("show");setupFilters();renderList()}
 
 function loadCSVFromInput(){const file=$("csvFile").files[0];if(!file){setStatus("CSVファイルを選択してください");return}readCSVFile(file)}
@@ -617,6 +651,80 @@ function readCSVFile(file){
 function mergeByName(base,incoming){const map=new Map(base.map(x=>[x.name,x]));incoming.forEach(x=>map.set(x.name,x));return [...map.values()]}
 
 async function removeDuplicates(){let total=0;for(const s of ["effects","items","dlois"]){let arr=s==="effects"?effects:s==="items"?items:dloisList;const before=arr.length;arr=mergeByName([],arr);total+=before-arr.length;await clearStore(s);await putMany(s,arr);if(s==="effects")effects=arr;if(s==="items")items=arr;if(s==="dlois")dloisList=arr}csvStatus.textContent=`重複削除完了：${total}件削除`;setupFilters();renderList()}
+function downloadJSON(filename, data){
+  const blob = new Blob(
+    [JSON.stringify(data, null, 2)],
+    {type:"application/json;charset=utf-8"}
+  );
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportShareData(){
+  const data = {
+    app: "dx3rd_dictionary",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    effects,
+    items,
+    dloisList
+  };
+
+  downloadJSON("dx3rd_dictionary_share.json", data);
+  setStatus("共有データを書き出しました");
+}
+
+function importShareDataFromInput(){
+  const file = $("csvFile").files[0];
+
+  if(!file){
+    setStatus("共有JSONファイルを選択してください");
+    return;
+  }
+
+  const reader = new FileReader();
+
+  reader.onload = async e => {
+    try{
+      const data = JSON.parse(e.target.result);
+
+      if(!data || data.app !== "dx3rd_dictionary"){
+        setStatus("このアプリ用の共有データではありません");
+        return;
+      }
+
+      const importedEffects = Array.isArray(data.effects) ? data.effects : [];
+      const importedItems = Array.isArray(data.items) ? data.items : [];
+      const importedDlois = Array.isArray(data.dloisList) ? data.dloisList : [];
+
+      effects = mergeByName(effects, importedEffects);
+      items = mergeByName(items, importedItems);
+      dloisList = mergeByName(dloisList, importedDlois);
+
+      await putMany("effects", importedEffects);
+      await putMany("items", importedItems);
+      await putMany("dlois", importedDlois);
+
+      setStatus(
+        `共有データ読み込み成功：エフェクト${importedEffects.length}件 / アイテム${importedItems.length}件 / Dロイス${importedDlois.length}件`
+      );
+
+      setupFilters();
+      renderList();
+
+    }catch(err){
+      console.error(err);
+      setStatus("共有データ読み込み失敗：" + (err.message || err));
+    }
+  };
+
+  reader.onerror = () => setStatus("共有データの読み込みに失敗しました");
+  reader.readAsText(file, "UTF-8");
+}
 async function clearAllData(){if(!confirm("保存済みの全データを削除しますか？"))return;await clearStore("effects");await clearStore("items");await clearStore("dlois");effects=[];items=[];dloisList=[];csvStatus.textContent="全データを削除しました";setupFilters();renderList();detail.classList.remove("show");editor.classList.remove("show")}
 
 function parseCSV(text){const rows=[];let row=[],cell="",quote=false;for(let i=0;i<text.length;i++){const c=text[i],n=text[i+1];if(c==='"'&&quote&&n==='"'){cell+='"';i++}else if(c==='"'){quote=!quote}else if(c===","&&!quote){row.push(cell);cell=""}else if((c==="\n"||c==="\r")&&!quote){if(c==="\r"&&n==="\n")i++;row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);row=[];cell=""}else cell+=c}row.push(cell);if(row.some(v=>v.trim()!==""))rows.push(row);return rows}
