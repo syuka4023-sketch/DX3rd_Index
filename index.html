@@ -19,6 +19,43 @@ input,select,textarea{padding:10px;border:1px solid #ccc;border-radius:8px;font-
 textarea{min-height:86px;resize:vertical}.dropzone{text-align:center;border:2px dashed #aaa;color:#666}.dropzone.drag{background:#eef0ff;border-color:#20243a}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}.card{background:white;padding:14px;border-radius:14px;box-shadow:0 2px 8px #0001}.card h3{margin:0 0 8px;cursor:pointer}.card h3:hover{text-decoration:underline}
 .tag{display:inline-block;background:#e7e9f8;color:#20243a;padding:4px 8px;border-radius:999px;font-size:12px;margin:2px}.userTag{display:inline-block;background:#ffe9c7;color:#7a4300;padding:4px 8px;border-radius:999px;font-size:12px;margin:2px}.detail,.editor{display:none}.detail.show,.editor.show{display:block}.small{font-size:13px;color:#666}.status{font-size:14px;color:#20243a;font-weight:bold}.empty{text-align:center;color:#777;padding:30px}.formGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.full{grid-column:1/-1}.count{font-weight:bold;color:#20243a}.cardActions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.hidden{display:none!important}
+.modalOverlay{
+  position:fixed;
+  inset:0;
+  background:#0008;
+  z-index:999;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+}
+.modalOverlay.show{display:flex}
+.modalBox{
+  background:white;
+  width:min(720px,100%);
+  max-height:85vh;
+  overflow:auto;
+  border-radius:16px;
+  padding:18px;
+  box-shadow:0 8px 30px #0005;
+}
+.checkBoxArea{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.checkChip{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  background:#eef0ff;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:13px;
+}
+.checkChip input{
+  width:auto;
+}
 </style>
 </head>
 <body>
@@ -74,11 +111,18 @@ textarea{min-height:86px;resize:vertical}.dropzone{text-align:center;border:2px 
   <p class="small">
     CSV読み込み、テンプレートDL、ドラッグ＆ドロップ読み込みをここで管理します。
   </p>
+  <div id="fileCsvStatus" class="status"></div>
 </section>
   <section id="dropzone" class="dropzone">CSVファイルをここにドラッグ＆ドロップ<br><span class="small">Live Server / localhost で開いてください</span></section>
   <section id="editor" class="editor"></section>
   <section id="detail" class="detail"></section>
   <section id="list" class="grid"></section>
+  <div id="detailModal" class="modalOverlay" onclick="closeDetailModal(event)">
+  <div class="modalBox" onclick="event.stopPropagation()">
+    <div id="detailModalBody"></div>
+  </div>
+</div>
+
 </main>
 
 <script>
@@ -89,12 +133,17 @@ let effects = [], items = [], dloisList = [];
 let editingOldName = null;
 let selectedFilterTags = [];
 let excludedFilterTags = [];
+let selectedSyndromeFilters = [];
 
 const defaultEffects = [{name:"コンセントレイト：エンジェルハイロゥ",syndrome:"エンジェルハイロゥ",timing:"メジャー",skill:"シンドローム",level:"1〜3",cost:"2",effect:"C値を-Lvする。下限値7。",description:"多くの攻撃ビルドで使われる基本的なクリティカル値低下エフェクト。",source:"基本ルールブック",tags:"通常エフェクト"}];
 const defaultItems = [{name:"日本刀",category:"武器",type:"白兵",purchase:"11",stock:"5",effect:"攻撃力+5、ガード値3。",description:"初期作成でも扱いやすい白兵武器。",source:"基本ルールブック"}];
 const defaultDlois = [{name:"実験体",type:"一般",timing:"常時",limit:"なし",effect:"能力値を合計+4する。",description:"能力値を底上げできる汎用性の高いDロイス。",source:"基本ルールブック"}];
 
 const $ = id => document.getElementById(id);
+function setStatus(text){
+  if($("csvStatus")) $("csvStatus").textContent = text;
+  if($("fileCsvStatus")) $("fileCsvStatus").textContent = text;
+}
 const effectTab=$("effectTab"), itemTab=$("itemTab"), dloisTab=$("dloisTab"), fileTab=$("fileTab"), searchInput=$("searchInput"), filter1=$("filter1"), filter2=$("filter2"), sortSelect=$("sortSelect"), list=$("list"), detail=$("detail"), editor=$("editor"), csvStatus=$("csvStatus"), dropzone=$("dropzone"), countText=$("countText");
 
 effectTab.onclick=()=>switchMode("effect");
@@ -142,31 +191,277 @@ async function clearStore(s){await ensureDB();return new Promise((resolve,reject
 
 async function init(){try{await openDB();effects=await getAll("effects");items=await getAll("items");dloisList=await getAll("dlois");if(!effects.length){effects=defaultEffects;await putMany("effects",effects)}if(!items.length){items=defaultItems;await putMany("items",items)}if(!dloisList.length){dloisList=defaultDlois;await putMany("dlois",dloisList)}setupFilters();renderList()}catch(err){csvStatus.textContent="初期化失敗："+(err.message||err)}}
 
-function setupFilters(){detail.classList.remove("show");updateExpFilterVisibility();filter1.innerHTML=`<option value="">すべて</option>`;filter2.innerHTML=`<option value="">すべて</option>`;if(mode==="effect"){filter1.dataset.key="syndrome";filter2.dataset.key="timing";filter1.firstElementChild.textContent="シンドロームすべて";filter2.firstElementChild.textContent="タイミングすべて";addOptions(filter1,unique(effects.map(e=>e.syndrome)));addOptions(filter2,unique(effects.map(e=>e.timing)))}if(mode==="item"){filter1.dataset.key="category";filter2.dataset.key="type";filter1.firstElementChild.textContent="種別すべて";filter2.firstElementChild.textContent="タイプすべて";addOptions(filter1,unique(items.map(i=>i.category)));addOptions(filter2,unique(items.map(i=>i.type)))}if(mode==="dlois"){filter1.dataset.key="type";filter2.dataset.key="limit";filter1.firstElementChild.textContent="分類すべて";filter2.firstElementChild.textContent="制限すべて";addOptions(filter1,unique(dloisList.map(d=>d.type)));addOptions(filter2,unique(dloisList.map(d=>d.limit)))}renderTagFilterBox()}
+function setupFilters(){detail.classList.remove("show");updateExpFilterVisibility();filter1.innerHTML=`<option value="">すべて</option>`;filter2.innerHTML=`<option value="">すべて</option>`;if(mode==="effect"){
+  filter1.classList.add("hidden");
+  
+  filter1.dataset.key="syndrome";
+  filter2.dataset.key="timing";
+
+  filter1.classList.add("hidden");
+
+  filter1.firstElementChild.textContent="シンドロームすべて";
+  filter2.firstElementChild.textContent="タイミングすべて";
+
+  addOptions(filter1,unique(effects.map(e=>e.syndrome)));
+  addOptions(filter2,unique(effects.map(e=>e.timing)));
+
+  renderSyndromeMultiFilter();
+}else{
+  filter1.classList.remove("hidden");
+  const old = document.getElementById("syndromeMultiFilterBox");
+  if(old) old.remove();
+}if(mode==="dlois"){filter1.dataset.key="type";filter2.dataset.key="limit";filter1.firstElementChild.textContent="分類すべて";filter2.firstElementChild.textContent="制限すべて";addOptions(filter1,unique(dloisList.map(d=>d.type)));addOptions(filter2,unique(dloisList.map(d=>d.limit)))}renderTagFilterBox()}
+function renderSyndromeMultiFilter(){
+  if(mode !== "effect") return;
+
+  let box = document.getElementById("syndromeMultiFilterBox");
+
+  if(!box){
+    box = document.createElement("div");
+    box.id = "syndromeMultiFilterBox";
+    box.className = "small";
+    filter1.parentElement.insertAdjacentElement("afterend", box);
+  }
+
+  const syndromes = unique(effects.map(e => e.syndrome));
+
+  if(!syndromes.length){
+    box.innerHTML = "シンドローム絞り込み：なし";
+    return;
+  }
+
+  box.innerHTML = `
+    <b>シンドローム絞り込み：</b>
+    <div class="checkBoxArea">
+      ${syndromes.map(s => `
+        <label class="checkChip">
+          <input type="checkbox"
+            value="${escapeAttr(s)}"
+            ${selectedSyndromeFilters.includes(s) ? "checked" : ""}
+            onchange="toggleSyndromeFilter(this)">
+          ${escapeHTML(s)}
+        </label>
+      `).join("")}
+    </div>
+    <button type="button" class="btn small" onclick="clearSyndromeFilters()">シンドローム選択解除</button>
+  `;
+}
+
+function toggleSyndromeFilter(input){
+  const value = input.value;
+
+  if(input.checked){
+    if(!selectedSyndromeFilters.includes(value)){
+      selectedSyndromeFilters.push(value);
+    }
+  }else{
+    selectedSyndromeFilters = selectedSyndromeFilters.filter(v => v !== value);
+  }
+
+  renderList();
+}
+
+function clearSyndromeFilters(){
+  selectedSyndromeFilters = [];
+  renderSyndromeMultiFilter();
+  renderList();
+}
 function unique(arr){return [...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b),"ja"))}
 function addOptions(select,values){values.forEach(v=>{const opt=document.createElement("option");opt.value=v;opt.textContent=v;select.appendChild(opt)})}
 
-function filteredSortedData(){const data=getCurrentData();const parsed=parseSearchQuery(searchInput.value.trim());const q=parsed.normal.toLowerCase();const f1=filter1.value,f2=filter2.value,k1=filter1.dataset.key,k2=filter2.dataset.key;const selectedTags=getSelectedTagFilters();const excludedTags = getExcludedTagFilters();const expMinValue=mode==="item"?(document.getElementById("expMinInput")?.value||""):"";const expMaxValue=mode==="item"?(document.getElementById("expMaxInput")?.value||""):"";const expMin=Number(expMinValue);const expMax=Number(expMaxValue);let result=data.filter(d=>{const text=Object.values(d).join(" ").toLowerCase();const itemTags=normalizeTags(d.tags).split(",").filter(Boolean);const tagOK=selectedTags.every(t=>itemTags.includes(t));const minusTagOK=excludedTags.every(t=>!itemTags.includes(t));const expNum=parseNumber(d.exp);const expMinOK=mode!=="item"||!expMinValue||(!isNaN(expNum)&&expNum>=expMin);const expMaxOK=mode!=="item"||!expMaxValue||(!isNaN(expNum)&&expNum<=expMax);return(!q||text.includes(q))&&(!f1||d[k1]===f1)&&(!f2||d[k2]===f2)&&tagOK&&minusTagOK&&expMinOK&&expMaxOK});const sort=sortSelect.value;result.sort((a,b)=>{let key="name";if(sort.startsWith("source"))key="source";if(sort.startsWith("skill"))key="skill";const r=String(a[key]||"").localeCompare(String(b[key]||""),"ja");return sort.endsWith("Desc")?-r:r});return result}
+function filteredSortedData(){const data=getCurrentData();const parsed=parseSearchQuery(searchInput.value.trim());const q=parsed.normal.toLowerCase();const f1=filter1.value,f2=filter2.value,k1=filter1.dataset.key,k2=filter2.dataset.key;const selectedTags=getSelectedTagFilters();const excludedTags = getExcludedTagFilters();const expMinValue=mode==="item"?(document.getElementById("expMinInput")?.value||""):"";const expMaxValue=mode==="item"?(document.getElementById("expMaxInput")?.value||""):"";const expMin=Number(expMinValue);const expMax=Number(expMaxValue);let result=data.filter(d=>{const text=Object.values(d).join(" ").toLowerCase();const itemTags=normalizeTags(d.tags).split(",").filter(Boolean);const tagOK=selectedTags.every(t=>itemTags.includes(t));const minusTagOK=excludedTags.every(t=>!itemTags.includes(t));const expNum=parseNumber(d.exp);const expMinOK=mode!=="item"||!expMinValue||(!isNaN(expNum)&&expNum>=expMin);const expMaxOK=mode!=="item"||!expMaxValue||(!isNaN(expNum)&&expNum<=expMax);const syndromeOK =
+  mode !== "effect" ||
+  selectedSyndromeFilters.length === 0 ||
+  selectedSyndromeFilters.includes(d.syndrome);
+
+return (!q || text.includes(q))
+  && syndromeOK
+  && (!f1 || d[k1] === f1)
+  && (!f2 || d[k2] === f2)
+  && tagOK
+  && minusTagOK
+  && expMinOK
+  && expMaxOK;});const sort=sortSelect.value;result.sort((a,b)=>{let key="name";if(sort.startsWith("source"))key="source";if(sort.startsWith("skill"))key="skill";const r=String(a[key]||"").localeCompare(String(b[key]||""),"ja");return sort.endsWith("Desc")?-r:r});return result}
 function renderList(){const result=filteredSortedData();list.innerHTML="";countText.textContent=`表示 ${result.length}件 / 全 ${getCurrentData().length}件`;if(!result.length){list.innerHTML=`<div class="empty">該当データがありません</div>`;return}result.forEach(d=>{const card=document.createElement("div");card.className="card";if(mode==="effect")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.syndrome)}</span><span class="tag">${escapeHTML(d.timing)}</span><span class="tag">${escapeHTML(d.skill)}</span>${renderUserTags(d.tags)}<p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;if(mode==="item")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.category)}</span><span class="tag">${escapeHTML(d.type)}</span>${renderUserTags(d.tags)}<p>購入：${escapeHTML(d.purchase)}</p><p>常備化：${escapeHTML(d.stock)}</p><p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;if(mode==="dlois")card.innerHTML=`<h3 onclick="renderDetailByName('${escapeJS(d.name)}')">${escapeHTML(d.name)}</h3><span class="tag">${escapeHTML(d.type)}</span><span class="tag">${escapeHTML(d.limit)}</span>${renderUserTags(d.tags)}<p>タイミング：${escapeHTML(d.timing)}</p><p><b>効果：</b><br>${escapeHTML(shortText(d.effect))}</p>`;list.appendChild(card)})}
 
-function renderDetailByName(name){const d=getCurrentData().find(x=>x.name===name);if(d)renderDetail(d)}
-function renderDetail(d){detail.classList.add("show");editor.classList.remove("show");if(mode==="effect")detail.innerHTML = `
+function renderDetailByName(name){
+  const d = getCurrentData().find(x => x.name === name);
+  if(d) renderDetailModal(d);
+}
+
+function renderDetail(d){
+  renderDetailModal(d);
+}
+
+function renderDetailModal(d){
+  const modal = document.getElementById("detailModal");
+  const body = document.getElementById("detailModalBody");
+  if(!modal || !body) return;
+
+  let html = "";
+
+  if(mode==="effect"){
+    html = `
       <h2>${escapeHTML(d.name)}</h2>
-      <p><b>最大レベル：</b>${escapeHTML(d.level)}</p>
-      <p><b>タイミング：</b>${escapeHTML(d.timing)}</p>
-      <p><b>技能：</b>${escapeHTML(d.skill)}</p>
+      <p><b>シンドローム：</b>${escapeHTML(d.syndrome || "-")}</p>
+      <p><b>最大レベル：</b>${escapeHTML(d.level || "-")}</p>
+      <p><b>タイミング：</b>${escapeHTML(d.timing || "-")}</p>
+      <p><b>技能：</b>${escapeHTML(d.skill || "-")}</p>
       <p><b>難易度：</b>${escapeHTML(d.difficulty || "-")}</p>
       <p><b>対象：</b>${escapeHTML(d.target || "-")}</p>
       <p><b>射程：</b>${escapeHTML(d.range || "-")}</p>
-      <p><b>侵蝕値：</b>${escapeHTML(d.cost)}</p>
+      <p><b>侵蝕値：</b>${escapeHTML(d.cost || "-")}</p>
       <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
-      <p><b>効果：</b><br>${escapeHTML(d.effect)}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
       <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
       <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
-      <button class="btn main" onclick="openEditByName('${escapeJS(d.name)}')">編集</button>
-      <button class="btn danger" onclick="deleteByName('${escapeJS(d.name)}')">削除</button>
-      <button class="btn" onclick="closeDetail()">閉じる</button>
-    `;if(mode==="item")detail.innerHTML=`<h2>${escapeHTML(d.name)}</h2><p><b>分類：</b>${escapeHTML(d.category)}</p><p><b>種別：</b>${escapeHTML(d.type)}</p><p><b>技能：</b>${escapeHTML(d.skill || "-")}</p>${d.skill?`<p><b>命中：</b>${escapeHTML(d.accuracy || "-")}</p><p><b>攻撃力：</b>${escapeHTML(d.attack || "-")}</p><p><b>ガード値：</b>${escapeHTML(d.guard || "-")}</p><p><b>射程：</b>${escapeHTML(d.range || "-")}</p>`:""}${d.type==="ヴィーグル"?`<p><b>行動：</b>${escapeHTML(d.action || "-")}</p><p><b>装甲値：</b>${escapeHTML(d.armor || "-")}</p><p><b>全力疾走：</b>${escapeHTML(d.fullMove || "-")}</p>`:""}<p><b>購入：</b>${escapeHTML(d.purchase)}</p><p><b>常備化：</b>${escapeHTML(d.stock)}</p><p><b>経験点：</b>${escapeHTML(d.exp || "-")}</p><p><b>効果：</b><br>${escapeHTML(d.effect)}</p><p><b>解説：</b><br>${escapeHTML(d.description||"解説なし")}</p><p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p><p><b>出典：</b>${escapeHTML(d.source)}</p>${detailButtons(d.name)}`;if(mode==="dlois")detail.innerHTML=`<h2>${escapeHTML(d.name)}</h2><p><b>分類：</b>${escapeHTML(d.type)}</p><p><b>タイミング：</b>${escapeHTML(d.timing)}</p><p><b>制限：</b>${escapeHTML(d.limit)}</p><p><b>効果：</b><br>${escapeHTML(d.effect)}</p><p><b>解説：</b><br>${escapeHTML(d.description||"解説なし")}</p><p><b>出典：</b>${escapeHTML(d.source)}</p>${detailButtons(d.name)}`;detail.scrollIntoView({behavior:"smooth"})}
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  if(mode==="item"){
+    html = `
+      <h2>${escapeHTML(d.name)}</h2>
+      <p><b>分類：</b>${escapeHTML(d.category || "-")}</p>
+      <p><b>種別：</b>${escapeHTML(d.type || "-")}</p>
+      <p><b>技能：</b>${escapeHTML(d.skill || "-")}</p>
+      <p><b>命中：</b>${escapeHTML(d.accuracy || "-")}</p>
+      <p><b>攻撃力：</b>${escapeHTML(d.attack || "-")}</p>
+      <p><b>ガード値：</b>${escapeHTML(d.guard || "-")}</p>
+      <p><b>射程：</b>${escapeHTML(d.range || "-")}</p>
+      <p><b>購入：</b>${escapeHTML(d.purchase || "-")}</p>
+      <p><b>常備化：</b>${escapeHTML(d.stock || "-")}</p>
+      <p><b>経験点：</b>${escapeHTML(d.exp || "-")}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
+      <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  if(mode==="dlois"){
+    html = `
+      <h2>${escapeHTML(d.name)}</h2>
+      <p><b>分類：</b>${escapeHTML(d.type || "-")}</p>
+      <p><b>タイミング：</b>${escapeHTML(d.timing || "-")}</p>
+      <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
+      <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  body.innerHTML = html;
+  modal.classList.add("show");
+}
+
+function modalButtons(name){
+  return `
+    <div class="row">
+      <button class="btn main" onclick="closeDetailModal();openEditByName('${escapeJS(name)}')">編集</button>
+      <button class="btn danger" onclick="closeDetailModal();deleteByName('${escapeJS(name)}')">削除</button>
+      <button class="btn" onclick="closeDetailModal()">閉じる</button>
+    </div>
+  `;
+}
+
+function closeDetailModal(event){
+  if(event && event.target.id !== "detailModal") return;
+  const modal = document.getElementById("detailModal");
+  if(modal) modal.classList.remove("show");
+}
+function renderDetailByName(name){
+  const d = getCurrentData().find(x => x.name === name);
+  if(d) renderDetailModal(d);
+}
+
+function renderDetail(d){
+  renderDetailModal(d);
+}
+
+function renderDetailModal(d){
+  const modal = document.getElementById("detailModal");
+  const body = document.getElementById("detailModalBody");
+  if(!modal || !body) return;
+
+  let html = "";
+
+  if(mode==="effect"){
+    html = `
+      <h2>${escapeHTML(d.name)}</h2>
+      <p><b>シンドローム：</b>${escapeHTML(d.syndrome || "-")}</p>
+      <p><b>最大レベル：</b>${escapeHTML(d.level || "-")}</p>
+      <p><b>タイミング：</b>${escapeHTML(d.timing || "-")}</p>
+      <p><b>技能：</b>${escapeHTML(d.skill || "-")}</p>
+      <p><b>難易度：</b>${escapeHTML(d.difficulty || "-")}</p>
+      <p><b>対象：</b>${escapeHTML(d.target || "-")}</p>
+      <p><b>射程：</b>${escapeHTML(d.range || "-")}</p>
+      <p><b>侵蝕値：</b>${escapeHTML(d.cost || "-")}</p>
+      <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
+      <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  if(mode==="item"){
+    html = `
+      <h2>${escapeHTML(d.name)}</h2>
+      <p><b>分類：</b>${escapeHTML(d.category || "-")}</p>
+      <p><b>種別：</b>${escapeHTML(d.type || "-")}</p>
+      <p><b>技能：</b>${escapeHTML(d.skill || "-")}</p>
+      <p><b>命中：</b>${escapeHTML(d.accuracy || "-")}</p>
+      <p><b>攻撃力：</b>${escapeHTML(d.attack || "-")}</p>
+      <p><b>ガード値：</b>${escapeHTML(d.guard || "-")}</p>
+      <p><b>射程：</b>${escapeHTML(d.range || "-")}</p>
+      <p><b>購入：</b>${escapeHTML(d.purchase || "-")}</p>
+      <p><b>常備化：</b>${escapeHTML(d.stock || "-")}</p>
+      <p><b>経験点：</b>${escapeHTML(d.exp || "-")}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
+      <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>タグ：</b><br>${renderUserTags(d.tags) || "タグなし"}</p>
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  if(mode==="dlois"){
+    html = `
+      <h2>${escapeHTML(d.name)}</h2>
+      <p><b>分類：</b>${escapeHTML(d.type || "-")}</p>
+      <p><b>タイミング：</b>${escapeHTML(d.timing || "-")}</p>
+      <p><b>制限：</b>${escapeHTML(d.limit || "-")}</p>
+      <p><b>効果：</b><br>${escapeHTML(d.effect || "")}</p>
+      <p><b>解説：</b><br>${escapeHTML(d.description || "解説なし")}</p>
+      <p><b>出典：</b>${escapeHTML(d.source || "-")}</p>
+      ${modalButtons(d.name)}
+    `;
+  }
+
+  body.innerHTML = html;
+  modal.classList.add("show");
+}
+
+function modalButtons(name){
+  return `
+    <div class="row">
+      <button class="btn main" onclick="closeDetailModal();openEditByName('${escapeJS(name)}')">編集</button>
+      <button class="btn danger" onclick="closeDetailModal();deleteByName('${escapeJS(name)}')">削除</button>
+      <button class="btn" onclick="closeDetailModal()">閉じる</button>
+    </div>
+  `;
+}
+
+function closeDetailModal(event){
+  if(event && event.target.id !== "detailModal") return;
+  const modal = document.getElementById("detailModal");
+  if(modal) modal.classList.remove("show");
+}
 function detailButtons(name){return `<button class="btn main" onclick="openEditByName('${escapeJS(name)}')">編集</button> <button class="btn danger" onclick="deleteByName('${escapeJS(name)}')">削除</button> <button class="btn" onclick="closeDetail()">閉じる</button>`}
 function closeDetail(){detail.classList.remove("show")}
 
@@ -179,14 +474,146 @@ function val(id){return ($(id)?.value||"").trim()}
 async function saveEditor(){const name=val("f_name");if(!name){csvStatus.textContent="名前は必須です";return}let arr=getCurrentData();const exists=arr.find(x=>x.name===name);if(exists&&editingOldName!==name&&!confirm("同じ名前のデータがあります。上書きしますか？"))return;let obj={name,effect:val("f_effect"),description:val("f_description"),tags:normalizeTags(val("f_tags")),source:val("f_source")};if(mode==="effect")Object.assign(obj,{syndrome:val("f_syndrome"),timing:val("f_timing"),skill:val("f_skill"),level:val("f_level"),cost:val("f_cost")});if(mode==="item")Object.assign(obj,{category:val("f_category"),type:val("f_type"),skill:val("f_skill"),accuracy:val("f_accuracy"),attack:val("f_attack"),guard:val("f_guard"),range:val("f_range"),action:val("f_action"),armor:val("f_armor"),fullMove:val("f_fullMove"),purchase:val("f_purchase"),stock:val("f_stock"),exp:val("f_exp")});if(mode==="dlois")Object.assign(obj,{type:val("f_type"),timing:val("f_timing"),limit:val("f_limit")});if(editingOldName&&editingOldName!==name){await deleteOne(storeName(),editingOldName);arr=arr.filter(x=>x.name!==editingOldName)}arr=arr.filter(x=>x.name!==name);arr.push(obj);setCurrentData(arr);await putOne(storeName(),obj);csvStatus.textContent=`保存しました：${name}`;editingOldName=null;closeEditor();setupFilters();renderList();renderDetail(obj)}
 async function deleteByName(name){if(!confirm(`「${name}」を削除しますか？`))return;let arr=getCurrentData().filter(x=>x.name!==name);setCurrentData(arr);await deleteOne(storeName(),name);csvStatus.textContent=`削除しました：${name}`;detail.classList.remove("show");setupFilters();renderList()}
 
-function loadCSVFromInput(){const file=$("csvFile").files[0];if(!file){csvStatus.textContent="CSVファイルを選択してください";return}readCSVFile(file)}
-function readCSVFile(file){const reader=new FileReader();reader.onload=async e=>{try{await ensureDB();let text=removeBOM(e.target.result);const rows=parseCSV(text);if(rows.length<2){csvStatus.textContent="CSVにデータがありません";return}const header=rows[0].map(h=>h.trim());let addEffect=0,addItem=0,addDlois=0,overwrite=0,skip=0;const newEffects=[],newItems=[],newDlois=[];for(let i=1;i<rows.length;i++){const obj={};header.forEach((h,idx)=>obj[h]=(rows[i][idx]||"").trim());if(!obj.name){skip++;continue}const kind=String(obj.kind||obj.dataType||obj.type||"").trim().toLowerCase();if(kind==="effect"){if(effects.find(e=>e.name===obj.name))overwrite++;else addEffect++;newEffects.push({name:obj.name,syndrome:obj.syndrome||"",timing:obj.timing||"",skill:obj.skill||"",level:obj.level||"",cost:obj.cost||"",effect:obj.effect||"",description:obj.description||"",source:obj.source||"",tags:normalizeTags(obj.tags||obj.effectType||"通常エフェクト")})}else if(kind==="item"){if(items.find(x=>x.name===obj.name))overwrite++;else addItem++;newItems.push({name:obj.name,category:obj.category||"",type:obj.type2||obj.itemType||obj.typeName||"",skill:obj.skill||"",accuracy:obj.accuracy||"",attack:obj.attack||"",guard:obj.guard||"",range:obj.range||"",action:obj.action||"",armor:obj.armor||"",fullMove:obj.fullMove||obj.fullmove||"",purchase:obj.purchase||"",stock:obj.stock||"",exp:obj.exp||"",effect:obj.effect||"",description:obj.description||"",source:obj.source||"",tags:normalizeTags(obj.tags||"")})}else if(kind==="dlois"){if(dloisList.find(x=>x.name===obj.name))overwrite++;else addDlois++;newDlois.push({name:obj.name,type:obj.dloisType||obj.type2||obj.category||"",timing:obj.timing||"",limit:obj.limit||"",effect:obj.effect||"",description:obj.description||"",source:obj.source||"",tags:normalizeTags(obj.tags||"")})}else skip++}
-      if(newEffects.length){effects=mergeByName(effects,newEffects);await putMany("effects",newEffects)}
-      if(newItems.length){items=mergeByName(items,newItems);await putMany("items",newItems)}
-      if(newDlois.length){dloisList=mergeByName(dloisList,newDlois);await putMany("dlois",newDlois)}
-      csvStatus.textContent=`読み込み成功：エフェクト${addEffect}件 / アイテム${addItem}件 / Dロイス${addDlois}件 / 上書き${overwrite}件 / スキップ${skip}件`;
-      setupFilters();renderList()
-    }catch(err){console.error(err);csvStatus.textContent="CSV読み込み失敗："+(err.message||err)}};reader.onerror=()=>csvStatus.textContent="ファイル読み込みに失敗しました";reader.readAsText(file,"UTF-8")}
+function loadCSVFromInput(){const file=$("csvFile").files[0];if(!file){setStatus("CSVファイルを選択してください");return}readCSVFile(file)}
+function readCSVFile(file){
+  const reader = new FileReader();
+
+  reader.onload = async e => {
+    try{
+      await ensureDB();
+
+      let text = removeBOM(e.target.result);
+      const rows = parseCSV(text);
+
+      if(rows.length < 2){
+        setStatus("CSVにデータがありません");
+        return;
+      }
+
+      const header = rows[0].map(h => h.trim());
+      let addEffect = 0, addItem = 0, addDlois = 0, overwrite = 0, skip = 0;
+
+      const newEffects = [];
+      const newItems = [];
+      const newDlois = [];
+
+      for(let i = 1; i < rows.length; i++){
+        const obj = {};
+        header.forEach((h, idx) => obj[h] = (rows[i][idx] || "").trim());
+
+        if(!obj.name){
+          skip++;
+          continue;
+        }
+
+        let kind = String(obj.kind || obj.dataType || "").trim().toLowerCase();
+
+        // kind列がないCSVでも自動判定
+        if(!kind){
+          if("syndrome" in obj || "level" in obj || "cost" in obj){
+            kind = "effect";
+          }else if("purchase" in obj || "stock" in obj || "exp" in obj || "type2" in obj || "itemType" in obj){
+            kind = "item";
+          }else if("dloisType" in obj || "limit" in obj){
+            kind = "dlois";
+          }
+        }
+
+        if(kind === "effect"){
+          if(effects.find(e => e.name === obj.name)) overwrite++;
+          else addEffect++;
+
+          newEffects.push({
+            name: obj.name,
+            syndrome: obj.syndrome || "",
+            timing: obj.timing || "",
+            skill: obj.skill || "",
+            level: obj.level || "",
+            cost: obj.cost || "",
+            difficulty: obj.difficulty || "",
+            target: obj.target || "",
+            range: obj.range || "",
+            limit: obj.limit || "",
+            effect: obj.effect || "",
+            description: obj.description || "",
+            source: obj.source || "",
+            tags: normalizeTags(obj.tags || obj.effectType || "通常エフェクト")
+          });
+
+        }else if(kind === "item"){
+          if(items.find(x => x.name === obj.name)) overwrite++;
+          else addItem++;
+
+          newItems.push({
+            name: obj.name,
+            category: obj.category || "",
+            type: obj.type2 || obj.itemType || obj.typeName || obj.type || "",
+            skill: obj.skill || "",
+            accuracy: obj.accuracy || "",
+            attack: obj.attack || "",
+            guard: obj.guard || "",
+            range: obj.range || "",
+            action: obj.action || "",
+            armor: obj.armor || "",
+            fullMove: obj.fullMove || obj.fullmove || "",
+            purchase: obj.purchase || "",
+            stock: obj.stock || "",
+            exp: obj.exp || "",
+            effect: obj.effect || "",
+            description: obj.description || "",
+            source: obj.source || "",
+            tags: normalizeTags(obj.tags || "")
+          });
+
+        }else if(kind === "dlois"){
+          if(dloisList.find(x => x.name === obj.name)) overwrite++;
+          else addDlois++;
+
+          newDlois.push({
+            name: obj.name,
+            type: obj.dloisType || obj.type2 || obj.category || obj.type || "",
+            timing: obj.timing || "",
+            limit: obj.limit || "",
+            effect: obj.effect || "",
+            description: obj.description || "",
+            source: obj.source || "",
+            tags: normalizeTags(obj.tags || "")
+          });
+
+        }else{
+          skip++;
+        }
+      }
+
+      if(newEffects.length){
+        effects = mergeByName(effects, newEffects);
+        await putMany("effects", newEffects);
+      }
+
+      if(newItems.length){
+        items = mergeByName(items, newItems);
+        await putMany("items", newItems);
+      }
+
+      if(newDlois.length){
+        dloisList = mergeByName(dloisList, newDlois);
+        await putMany("dlois", newDlois);
+      }
+
+      setStatus(`読み込み成功：エフェクト${addEffect}件 / アイテム${addItem}件 / Dロイス${addDlois}件 / 上書き${overwrite}件 / スキップ${skip}件`);
+
+      setupFilters();
+      renderList();
+
+    }catch(err){
+      console.error(err);
+      setStatus("CSV読み込み失敗：" + (err.message || err));
+    }
+  };
+
+  reader.onerror = () => setStatus("ファイル読み込みに失敗しました");
+  reader.readAsText(file, "UTF-8");
+}
 function mergeByName(base,incoming){const map=new Map(base.map(x=>[x.name,x]));incoming.forEach(x=>map.set(x.name,x));return [...map.values()]}
 
 async function removeDuplicates(){let total=0;for(const s of ["effects","items","dlois"]){let arr=s==="effects"?effects:s==="items"?items:dloisList;const before=arr.length;arr=mergeByName([],arr);total+=before-arr.length;await clearStore(s);await putMany(s,arr);if(s==="effects")effects=arr;if(s==="items")items=arr;if(s==="dlois")dloisList=arr}csvStatus.textContent=`重複削除完了：${total}件削除`;setupFilters();renderList()}
